@@ -1,0 +1,80 @@
+{
+  "projectType": "frontend",
+  "projectName": "artha-js",
+  "projectDescription": "A lightweight JavaScript library of custom Web Components and core utilities for building dynamic, data-driven SPAs with XHR, event bus, and task queue support.",
+  "theme": "palm",
+  "primaryColor": "#3a87ad",
+  "lightColor": "#d9edf7",
+  "darkColor": "#1a4a6a",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Core",
+            "pages": [
+              "core/config",
+              "core/xhr",
+              "core/event-bus",
+              "core/task-queue",
+              "core/util"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/artha-container",
+              "components/artha-form",
+              "components/artha-message"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/data-wiring",
+              "guides/selection",
+              "guides/styling"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "ArthaContainer — custom element that fetches, templates, and renders lists of data via XHR",
+    "ArthaForm — custom element that serializes inputs and submits via XHR with task-queue feedback",
+    "ArthaMessage — custom element for displaying typed status messages (error, info, success, warning)",
+    "XHR — thin XMLHttpRequest wrapper with CSRF support, retry, progress, query strings, and file uploads",
+    "EventBus — global pub/sub event system built on the native EventTarget API",
+    "TaskQueue — singleton queue for tracking in-flight async tasks with promise-based resolution",
+    "Config — centralized global settings for locale, currency, XHR defaults, and task queue options",
+    "Util — DOM helpers for modals, value resolution, money formatting, and element creation"
+  ],
+  "publicApiSurface": [
+    "ArthaContainer (custom element: artha-container)",
+    "ArthaForm (custom element: artha-form)",
+    "ArthaMessage (custom element: artha-message)",
+    "XHR.request(options)",
+    "EventBus.emit(name, data)",
+    "EventBus.on(name, callback)",
+    "EventBus.once(name, callback)",
+    "EventBus.off(name, callback)",
+    "TaskQueue.singleton()",
+    "TaskQueue#loadTask(id, title, callback, options)",
+    "Config.set(options)",
+    "Config.get(path, default)",
+    "Util.getMeta(name)",
+    "Util.getValueByPath(obj, path, default_value)",
+    "Util.modal(content, visible)",
+    "Util.modalById(id, visible)",
+    "Util.formatMoney(value, options)",
+    "Util.numberRandom(min, max)",
+    "Util.withinRange(value, min, max)",
+    "Util.createElement(type, value, options)"
+  ]
+}
