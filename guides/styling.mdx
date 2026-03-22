@@ -1,0 +1,215 @@
+---
+title: Styling
+description: Load the artha-js stylesheet, customize SCSS variables, and apply CSS to artha-js components.
+---
+
+artha-js ships a compiled CSS file for its built-in components. You can use it directly or compile the SCSS source yourself to override variables before bundling.
+
+## Loading the stylesheet
+
+Add the compiled CSS file to your HTML `<head>` before any other stylesheets.
+
+```html index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="dist/artha.min.css">
+  <script type="module" src="dist/artha.min.js"></script>
+</head>
+<body>
+  ...
+</body>
+</html>
+```
+
+## Compiling from SCSS source
+
+If you want to customize variables, compile the SCSS yourself instead of using the pre-built file.
+
+<Steps>
+  <Step title="Install the Sass compiler">
+    ```bash terminal
+    npm install -g sass
+    ```
+  </Step>
+  <Step title="Build the CSS once">
+    ```bash terminal
+    sass src/scss/main.scss dist/artha.min.css --style=compressed
+    ```
+  </Step>
+  <Step title="Watch for changes during development">
+    Run the dev watch script from `package.json` to recompile automatically on every save:
+
+    ```bash terminal
+    npm run sass:dev
+    ```
+
+    This runs:
+
+    ```bash terminal
+    sass --watch src/scss/main.scss:dist/artha.min.css --style=compressed
+    ```
+  </Step>
+</Steps>
+
+## SCSS file structure
+
+The entry point is `src/scss/main.scss`, which forwards all partials.
+
+```
+src/scss/
+├── main.scss       # Entry point — imports all partials
+├── colors.scss     # Color variables for all components
+└── message.scss    # Styles for <artha-message>
+```
+
+## Message color variables
+
+All message colors are defined as SCSS variables in `src/scss/colors.scss`. Override them before compiling to change the appearance of `<artha-message>` across all four types.
+
+```scss src/scss/colors.scss
+// Text colors
+$msg-text-error-color:   #b94a48;
+$msg-text-success-color: #468847;
+$msg-text-warning-color: #c09853;
+$msg-text-info-color:    #3a87ad;
+
+// Background colors
+$msg-background-error-color:   #f2dede;
+$msg-background-success-color: #dff0d8;
+$msg-background-warning-color: #fcf8e3;
+$msg-background-info-color:    #d9edf7;
+```
+
+To override a color, edit `colors.scss` and recompile:
+
+```scss src/scss/colors.scss
+// Custom brand error color
+$msg-text-error-color:       #cc0000;
+$msg-background-error-color: #fff0f0;
+```
+
+<Note>
+  The SCSS variable names use underscores internally (e.g., `$msg_background_error_color`) when referenced inside `message.scss` because SCSS treats hyphens and underscores as interchangeable in variable names.
+</Note>
+
+## CSS classes reference
+
+### Selection
+
+| Class       | Applied to                                                        |
+| ----------- | ----------------------------------------------------------------- |
+| `.selected` | The root `[data-id]` element of a selected item in a `selectable` container |
+
+```css styles.css
+/* Style selected items */
+artha-container .my-card.selected {
+  border: 2px solid #3a87ad;
+  background-color: #d9edf7;
+}
+```
+
+### Boolean wire output
+
+The `data-wire="field,boolean"` rendering produces a `<span>` with these classes:
+
+| Class              | Description                          |
+| ------------------ | ------------------------------------ |
+| `.check-cross`     | Always present on the wrapper `<span>` |
+| `.check-cross-yes` | Present when the value is truthy (✔) |
+| `.check-cross-no`  | Present when the value is falsy (✘)  |
+
+```css styles.css
+.check-cross-yes {
+  color: #468847;
+}
+
+.check-cross-no {
+  color: #b94a48;
+}
+```
+
+### Loader overlay
+
+`<artha-container>` displays a loading overlay while fetching data. The overlay is composed of these classes:
+
+| Class                | Element              | Description                             |
+| -------------------- | -------------------- | --------------------------------------- |
+| `.loader-container`  | Wrapper `<div>`      | Positions the overlay over the content  |
+| `.background-overlay`| Inner `<div>`        | Semi-transparent backdrop               |
+| `.loader`            | Inner `<div>`        | The animated spinner element            |
+| `.active`            | Added to `.loader`   | Present while loading is in progress    |
+| `.img-container`     | Inner `<div>`        | Wraps the logo image inside the overlay |
+
+```css styles.css
+/* Custom loader color */
+.loader-container .loader.active {
+  border-top-color: #3a87ad;
+}
+
+/* Hide the logo image inside the loader */
+.loader-container .img-container {
+  display: none;
+}
+```
+
+## Targeting components in CSS
+
+### `artha-message`
+
+Target by the `type` attribute to style specific message states.
+
+```css styles.css
+artha-message[type="error"] {
+  border-left: 4px solid #b94a48;
+}
+
+artha-message[type="success"] {
+  border-left: 4px solid #468847;
+}
+
+artha-message[type="warning"] {
+  border-left: 4px solid #c09853;
+}
+
+artha-message[type="info"] {
+  border-left: 4px solid #3a87ad;
+}
+```
+
+### `artha-container`
+
+```css styles.css
+/* Container layout */
+artha-container {
+  display: block;
+  position: relative;
+}
+
+/* Target the inner dynamic-content wrapper */
+artha-container dynamic-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+```
+
+### `artha-form`
+
+```css styles.css
+artha-form {
+  display: block;
+  max-width: 480px;
+}
+
+artha-form input,
+artha-form select,
+artha-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+```
+
+<Tip>
+  Because artha-js components are standard HTML custom elements (not shadow DOM), all their internals are fully accessible from your global stylesheet. There is no style encapsulation to work around.
+</Tip>

@@ -1,80 +1,263 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get up and running with artha-js in under five minutes.
 ---
 
-## Get started in three steps
+This guide walks you through adding artha-js to a project, rendering a list of data from an API, submitting a form, and using the EventBus for cross-component communication.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+You need a static HTML file served from a web server (not opened directly from the filesystem) because artha-js uses ES modules and XMLHttpRequest, which require an HTTP origin.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Step 1: Include artha-js
 
-### Step 2: Deploy your changes
+<Steps>
+  <Step title="Include the compiled bundle">
+    Add the stylesheet and script to your HTML `<head>`. The compiled bundle registers all custom elements automatically.
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```html index.html
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>My App</title>
+      <link rel="stylesheet" href="dist/artha.min.css">
+      <script type="module" src="dist/artha.min.js"></script>
+    </head>
+    <body>
+      <!-- your content here -->
+    </body>
+    </html>
+    ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    <Note>
+      The `type="module"` attribute is required. artha-js is distributed as an ES module.
+    </Note>
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Or import individual modules via ESM">
+    If you are using a bundler or want to use only specific modules, import them directly:
 
-### Step 3: Go live
+    ```javascript app.js
+    import Config from './src/core/Config.js';
+    import XHR from './src/core/XHR.js';
+    import EventBus from './src/core/EventBus.js';
+    import TaskQueue from './src/core/TaskQueue.js';
+    import Util from './src/core/Util.js';
+    ```
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Step 2: Render a list with `<artha-container>`
+
+`<artha-container>` fetches data from a URL and renders it using a `<template>` element. Use `data-wire` attributes to map JSON fields to DOM elements.
+
+```html
+<!-- The container fetches data and renders items using the template -->
+<artha-container
+  action="/api/users"
+  template="user-template">
+  <artha-message></artha-message>
+</artha-container>
+
+<!-- Each JSON object in data[] is cloned into this template -->
+<template id="user-template">
+  <div class="user-card">
+    <strong data-wire="name"></strong>
+    <span data-wire="email"></span>
+    <a data-wire="profile_url,href">View profile</a>
+  </div>
+</template>
+```
+
+Your API endpoint should return a JSON object with a `data` array:
+
+```json
+{
+  "data": [
+    { "id": 1, "name": "Alice", "email": "alice@example.com", "profile_url": "/users/1" },
+    { "id": 2, "name": "Bob",   "email": "bob@example.com",   "profile_url": "/users/2" }
+  ]
+}
+```
+
+The container assigns each item's `id` to a `data-id` attribute automatically, which enables selection and `refreshWithData()` updates.
+
+<Tip>
+  The `data-wire` value is a dot-notation path into the JSON object. Use `data-wire="address.city"` to reach nested fields.
+</Tip>
+
+## Step 3: Configure global defaults with `Config`
+
+Set application-wide defaults once at startup. Every module reads from `Config` so you avoid repeating options on every call.
+
+```javascript
+import Config from './src/core/Config.js';
+
+Config.set({
+  locale: 'en-US',
+  currency: 'USD',
+  xhr: {
+    ...Config.get('xhr'),   // spread to preserve other xhr defaults
+    timeout: 10000,
+    retry: true,
+    retry_delay: 3000,
+    with_credentials: true
+  }
+});
+```
+
+<Warning>
+  `Config.set()` performs a **shallow** merge. Passing an `xhr` key replaces the entire `xhr` block. Always spread `Config.get('xhr')` first if you only want to change a few properties.
+</Warning>
+
+## Step 4: Submit a form with `<artha-form>`
+
+`<artha-form>` serializes all named inputs and submits them via XHR. It automatically shows feedback in the embedded `<artha-message>`.
+
+```html
+<artha-form id="login-form" action="/api/login" method="POST">
+  <artha-message></artha-message>
+
+  <label>
+    Email
+    <input type="email" name="email" required>
+  </label>
+
+  <label>
+    Password
+    <input type="password" name="password" required>
+  </label>
+
+  <button type="submit">Log in</button>
+  <button type="reset">Clear</button>
+</artha-form>
+```
+
+Listen for the `resolve` event to act on the server response:
+
+```javascript
+const form = document.querySelector('#login-form');
+
+form.addEventListener('resolve', (evt) => {
+  const json = evt.detail;
+  if (json.token) {
+    localStorage.setItem('token', json.token);
+    window.location.href = '/dashboard';
+  }
+});
+```
+
+You can also submit and fill the form programmatically:
+
+```javascript
+// Programmatic submit
+form.submit();
+
+// Populate inputs from a JSON object (e.g. edit form)
+form.fillFromJson({ email: 'alice@example.com' });
+
+// Read a single input value
+const email = form.getValue('email');
+```
+
+## Step 5: Cross-component communication with `EventBus`
+
+Use `EventBus` to let components communicate without direct references. A common pattern is refreshing a container after a form submission.
+
+```javascript
+import EventBus from './src/core/EventBus.js';
+
+// In your form's resolve handler — broadcast that users changed
+form.addEventListener('resolve', () => {
+  EventBus.emit('users:updated');
+});
+
+// In your container setup — react to the event
+EventBus.on('users:updated', () => {
+  userContainer.refresh();
+});
+```
+
+You can also do this entirely in HTML using the `refresh-on` attribute on `<artha-container>`:
+
+```html
+<!-- This container automatically refreshes when the "users:updated" event fires -->
+<artha-container
+  action="/api/users"
+  template="user-template"
+  refresh-on="users:updated">
+</artha-container>
+```
+
+When the EventBus emits `users:updated` with a payload (e.g. a single updated record), the container calls `refreshWithData()` to update just that item in place instead of re-fetching the entire list.
+
+## Complete example
+
+Here is a self-contained page that combines all of the above:
+
+```html index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="csrf-token" content="your-csrf-token-here">
+  <title>artha-js Demo</title>
+  <link rel="stylesheet" href="dist/artha.min.css">
+  <script type="module" src="dist/artha.min.js"></script>
+</head>
+<body>
+
+  <artha-form id="create-user" action="/api/users" method="POST">
+    <artha-message></artha-message>
+    <input type="text" name="name" placeholder="Name" required>
+    <input type="email" name="email" placeholder="Email" required>
+    <button type="submit">Add user</button>
+  </artha-form>
+
+  <artha-container
+    id="user-list"
+    action="/api/users"
+    template="user-tpl"
+    refresh-on="users:updated">
+    <artha-message></artha-message>
+  </artha-container>
+
+  <template id="user-tpl">
+    <div class="user-row">
+      <strong data-wire="name"></strong>
+      <small data-wire="email"></small>
+    </div>
+  </template>
+
+  <script type="module">
+    import EventBus from './src/core/EventBus.js';
+
+    document.querySelector('#create-user').addEventListener('resolve', () => {
+      EventBus.emit('users:updated');
+    });
+  </script>
+</body>
+</html>
+```
+
+<Note>
+  The `<meta name="csrf-token">` tag is read automatically by `XHR.js` and injected as both the `X-CSRF-Token` header and a `csrf_token` FormData field on every non-GET request.
+</Note>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="ArthaContainer" icon="table" href="/components/artha-container">
+    Full attribute, event, and API reference for the dynamic container
+  </Card>
+  <Card title="ArthaForm" icon="file-pen" href="/components/artha-form">
+    Full attribute, event, and API reference for the form component
+  </Card>
+  <Card title="Data Wiring Guide" icon="code-branch" href="/guides/data-wiring">
+    All data-wire patterns: attributes, arrays, booleans, and choosers
+  </Card>
+  <Card title="Core XHR" icon="arrow-right-arrow-left" href="/core/xhr">
+    Full XHR.request() options reference including file uploads and retry
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

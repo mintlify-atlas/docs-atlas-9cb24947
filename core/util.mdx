@@ -1,0 +1,228 @@
+---
+title: Util
+description: Collection of static helper methods for DOM access, path traversal, modal toggling, money formatting, and element creation.
+---
+
+`Util` is a static utility class with small, focused helpers used throughout artha-js. You can import and use them directly in your own components.
+
+## Methods
+
+### Util.getMeta(name)
+
+Reads the `content` attribute of a `<meta>` element matching the given `name`.
+
+<ParamField path="name" type="string" required>
+  Value of the `name` attribute on the target `<meta>` tag.
+</ParamField>
+
+**Returns:** `string | null` — the `content` value, or `null` when no matching element is found.
+
+```javascript
+// <meta name="csrf-token" content="abc123">
+const token = Util.getMeta('csrf-token'); // 'abc123'
+const missing = Util.getMeta('no-such-meta'); // null
+```
+
+---
+
+### Util.getValueByPath(obj, path, default_value)
+
+Traverses a nested object using dot-notation and returns the value at the resolved path.
+
+<ParamField path="obj" type="object" required>
+  The object to traverse.
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  Dot-separated key path, e.g. `"user.address.city"`.
+</ParamField>
+
+<ParamField path="default_value" type="any" default="null">
+  Returned when any key in the path is missing or `undefined`.
+</ParamField>
+
+**Returns:** The value at `path`, or `default_value` if the path cannot be resolved.
+
+```javascript
+const data = { user: { address: { city: 'Guadalajara' } } };
+
+Util.getValueByPath(data, 'user.address.city');         // 'Guadalajara'
+Util.getValueByPath(data, 'user.address.zip', 'N/A');  // 'N/A'
+Util.getValueByPath(data, 'user.phone');               // null
+```
+
+---
+
+### Util.modal(content, visible)
+
+Toggles or explicitly shows/hides a DOM element by manipulating both `style.display` and the `hidden` attribute / `hidden` CSS class.
+
+<ParamField path="content" type="HTMLElement" required>
+  The element to show or hide.
+</ParamField>
+
+<ParamField path="visible" type="number | boolean" default="-1">
+  Controls the show/hide behavior:
+
+  - `-1` (default) — toggle the current visibility state.
+  - `true` / truthy — force the element to be visible (`display: block`, remove `hidden`).
+  - `false` / falsy (but not `-1`) — force the element to be hidden (`display: none`, add `hidden`).
+</ParamField>
+
+```javascript
+const dialog = document.querySelector('#my-dialog');
+
+Util.modal(dialog);        // toggle
+Util.modal(dialog, true);  // show
+Util.modal(dialog, false); // hide
+```
+
+---
+
+### Util.modalById(id, visible)
+
+Convenience wrapper around `Util.modal()` that accepts an element ID string instead of an element reference.
+
+<ParamField path="id" type="string" required>
+  The `id` attribute of the target element (without the `#` prefix).
+</ParamField>
+
+<ParamField path="visible" type="number | boolean" default="-1">
+  Same semantics as `Util.modal()`: `-1` toggles, `true` shows, `false` hides.
+</ParamField>
+
+```javascript
+Util.modalById('my-dialog');         // toggle
+Util.modalById('my-dialog', true);   // show
+Util.modalById('my-dialog', false);  // hide
+```
+
+---
+
+### Util.formatMoney(value, options)
+
+Formats a numeric value as a localized currency string using `Intl.NumberFormat`. Non-numeric characters (except `.`) are stripped before formatting.
+
+<ParamField path="value" type="string | number" required>
+  The amount to format. Strings are cleaned with `/[^0-9.]/g` before parsing, so values like `"$1,234.50"` are handled correctly.
+</ParamField>
+
+<ParamField path="options" type="object" default="{}">
+  Formatting overrides. All three keys fall back to the active `Config` values when omitted.
+
+  | Key | Type | Default | Description |
+  |-----|------|---------|-------------|
+  | `locale` | `string` | `Config.get("locale")` | BCP 47 locale string (e.g. `"en-US"`). |
+  | `currency` | `string` | `Config.get("currency")` | ISO 4217 currency code (e.g. `"USD"`). |
+  | `digits` | `number` | `Config.get("money.digits")` | Minimum fraction digits. |
+</ParamField>
+
+**Returns:** `string` — the formatted currency string, or the original `value` string if parsing fails.
+
+```javascript
+// Using Config defaults (locale: 'es-MX', currency: 'MXN', digits: 2)
+Util.formatMoney(1234.5);             // '$1,234.50'
+Util.formatMoney('$9,999.99');        // '$9,999.99' (cleaned before parsing)
+
+// Explicit overrides
+Util.formatMoney(1234.5, {
+  locale: 'en-US',
+  currency: 'USD',
+  digits: 2
+});  // '$1,234.50'
+```
+
+---
+
+### Util.numberRandom(min, max)
+
+Returns a random integer between `min` and `max`, inclusive.
+
+<ParamField path="min" type="number" required>
+  Lower bound (inclusive).
+</ParamField>
+
+<ParamField path="max" type="number" required>
+  Upper bound (inclusive).
+</ParamField>
+
+**Returns:** `number` — a random integer in `[min, max]`.
+
+```javascript
+Util.numberRandom(1, 6);    // simulates a die roll: 1, 2, 3, 4, 5, or 6
+Util.numberRandom(0, 100);  // random percentage
+```
+
+---
+
+### Util.withinRange(value, min, max)
+
+Checks whether `value` falls within `[min, max]` (both bounds inclusive).
+
+<ParamField path="value" type="number" required>
+  The value to test.
+</ParamField>
+
+<ParamField path="min" type="number" required>
+  Lower bound (inclusive).
+</ParamField>
+
+<ParamField path="max" type="number" required>
+  Upper bound (inclusive).
+</ParamField>
+
+**Returns:** `boolean`
+
+```javascript
+Util.withinRange(200, 200, 299); // true  — used internally to check 2xx status
+Util.withinRange(404, 200, 299); // false
+Util.withinRange(5, 1, 10);      // true
+```
+
+---
+
+### Util.createElement(type, value, options)
+
+Creates a DOM element, optionally populating it with children or text content.
+
+<ParamField path="type" type="string" required>
+  Tag name passed to `document.createElement()` (e.g. `"div"`, `"span"`, `"button"`).
+</ParamField>
+
+<ParamField path="value" type="null | string | HTMLElement[] | function" default="null">
+  Controls how the element is populated after creation:
+
+  - `null` — returns the empty element immediately (no content is set).
+  - `string` — sets `element.textContent` to the string.
+  - `Array` of `HTMLElement` — each item is appended as a child.
+  - `function` — called with the element as its argument; use this for custom setup logic.
+</ParamField>
+
+<ParamField path="options" type="object" default="{}">
+  Options object forwarded as the second argument to `document.createElement()`. Used for built-in element options such as `{ is: 'my-custom-element' }`.
+</ParamField>
+
+**Returns:** `HTMLElement`
+
+<Warning>
+  When `value` is `null`, the function returns the element immediately before evaluating any population logic. Pass an empty string `""` to get an element with no text but still run through the full code path.
+</Warning>
+
+```javascript
+// Empty element
+const div = Util.createElement('div');
+
+// Element with text content
+const label = Util.createElement('span', 'Hello, world!');
+
+// Element populated via callback
+const card = Util.createElement('div', (el) => {
+  el.className = 'card';
+  el.setAttribute('data-id', '42');
+});
+
+// Element with child elements
+const li1 = Util.createElement('li', 'First');
+const li2 = Util.createElement('li', 'Second');
+const ul = Util.createElement('ul', [li1, li2]);
+```

@@ -1,0 +1,226 @@
+---
+title: Config
+description: Global configuration store for artha-js defaults, including locale, currency, XHR, and task queue settings.
+---
+
+The `Config` class is a static store that holds application-wide defaults. Every other artha-js module reads from it, so setting options here once lets you avoid repeating yourself across individual calls.
+
+## Default configuration
+
+The following values are used when no explicit option is passed:
+
+```javascript default values
+{
+  locale: "es-MX",
+  currency: "MXN",
+  money: {
+    digits: 2
+  },
+  xhr: {
+    method: "GET",
+    url: null,
+    uri: "",
+    headers: {},
+    data: {},
+    query: {},
+    files: {},
+    response_type: "json",
+    with_credentials: false,
+    timeout: 0,
+    retry: false,
+    retry_delay: 5000,
+    onLoad: () => {},
+    onData: () => {},
+    onError: () => {},
+    onTimeout: () => {},
+    onProgress: () => {},
+    onAbort: () => {},
+    onAction: () => {}
+  },
+  task_queue: {
+    title: "Petición en proceso...",
+    close: false,
+    message: null
+  }
+}
+```
+
+## Methods
+
+### Config.set(options)
+
+Merges `options` into the current configuration using a shallow spread. Existing keys not present in `options` are preserved.
+
+<ParamField path="options" type="object" required>
+  A plain object whose keys are merged into the current settings. Nested objects (such as `xhr` or `money`) are replaced wholesale — they are not deep-merged.
+</ParamField>
+
+### Config.get(path, default)
+
+Retrieves a value from the configuration using dot-notation.
+
+<ParamField path="path" type="string" required>
+  Dot-separated key path into the settings object (e.g. `"xhr.timeout"`, `"money.digits"`).
+</ParamField>
+
+<ParamField path="default" type="any" default="null">
+  Value returned when the resolved path is `undefined` or any intermediate key is missing.
+</ParamField>
+
+Returns the value found at `path`, or `default` if the path cannot be resolved.
+
+<Note>
+  `Config.set()` performs a **shallow** merge at the top level. If you override `xhr`, you must include every `xhr` property you want to keep, or those keys will revert to `undefined`.
+</Note>
+
+## Config options reference
+
+### Locale & currency
+
+<ParamField path="locale" type="string" default="es-MX">
+  BCP 47 locale string used by `Util.formatMoney()` when formatting currency values.
+</ParamField>
+
+<ParamField path="currency" type="string" default="MXN">
+  ISO 4217 currency code used by `Util.formatMoney()`.
+</ParamField>
+
+<ParamField path="money.digits" type="number" default="2">
+  Minimum fraction digits passed to `Intl.NumberFormat` when formatting monetary values.
+</ParamField>
+
+### XHR defaults
+
+<ParamField path="xhr.method" type="string" default="GET">
+  Default HTTP method for every `XHR.request()` call.
+</ParamField>
+
+<ParamField path="xhr.url" type="string | null" default="null">
+  Absolute URL. When `null`, the URL is built from `uri`.
+</ParamField>
+
+<ParamField path="xhr.uri" type="string" default="">
+  Path appended to `/` when `url` is `null` (e.g. `"api/users"` → `/api/users`).
+</ParamField>
+
+<ParamField path="xhr.headers" type="object" default="{}">
+  Additional request headers sent with every XHR call.
+</ParamField>
+
+<ParamField path="xhr.data" type="object" default="{}">
+  Default form data fields appended to the `FormData` body on non-GET requests.
+</ParamField>
+
+<ParamField path="xhr.query" type="object" default="{}">
+  Default query string parameters appended to every request URL.
+</ParamField>
+
+<ParamField path="xhr.files" type="object" default="{}">
+  Default file fields included in non-GET requests.
+</ParamField>
+
+<ParamField path="xhr.response_type" type="string" default="json">
+  `XMLHttpRequest.responseType`. Common values: `"json"`, `"blob"`, `"text"`.
+</ParamField>
+
+<ParamField path="xhr.with_credentials" type="boolean" default="false">
+  Sets `XMLHttpRequest.withCredentials` — enables cookies and auth headers on cross-origin requests.
+</ParamField>
+
+<ParamField path="xhr.timeout" type="number" default="0">
+  Request timeout in milliseconds. `0` means no timeout.
+</ParamField>
+
+<ParamField path="xhr.retry" type="boolean" default="false">
+  When `true`, the request is automatically retried after a network error or timeout.
+</ParamField>
+
+<ParamField path="xhr.retry_delay" type="number" default="5000">
+  Milliseconds to wait before retrying after a failure.
+</ParamField>
+
+<ParamField path="xhr.onLoad" type="function" default="() => {}">
+  Called with the `XMLHttpRequest` object whenever a response is received (regardless of status).
+</ParamField>
+
+<ParamField path="xhr.onData" type="function" default="() => {}">
+  Called with `(xhr, response)` when the HTTP status is in the 200–299 range.
+</ParamField>
+
+<ParamField path="xhr.onError" type="function" default="() => {}">
+  Called with `response` on non-2xx status codes or network errors.
+</ParamField>
+
+<ParamField path="xhr.onTimeout" type="function" default="() => {}">
+  Called with `response` when the request exceeds the configured timeout.
+</ParamField>
+
+<ParamField path="xhr.onProgress" type="function" default="() => {}">
+  Called with `(event, loaded, total)` as upload or download progresses.
+</ParamField>
+
+<ParamField path="xhr.onAbort" type="function" default="() => {}">
+  Called with `response` when the request is aborted.
+</ParamField>
+
+<ParamField path="xhr.onAction" type="function" default="() => {}">
+  Called with the `XMLHttpRequest` object immediately before `xhr.send()`. Use this to hold a reference to the object for later cancellation.
+</ParamField>
+
+### Task queue defaults
+
+<ParamField path="task_queue.title" type="string" default="Petición en proceso...">
+  Default status message shown by the linked `ArthaMessage` element while a task is pending.
+</ParamField>
+
+<ParamField path="task_queue.close" type="boolean" default="false">
+  When `true`, the associated message element is removed 2.5 seconds after the task finalizes.
+</ParamField>
+
+<ParamField path="task_queue.message" type="string | ArthaMessage | null" default="null">
+  ID string or `ArthaMessage` element instance used to display task status feedback.
+</ParamField>
+
+## Examples
+
+### Override locale and currency
+
+```javascript
+import Config from 'artha-js/core/Config.js';
+
+Config.set({
+  locale: 'en-US',
+  currency: 'USD',
+  money: { digits: 2 }
+});
+```
+
+### Override XHR defaults
+
+<Warning>
+  Because `Config.set()` is a shallow merge, passing an `xhr` object replaces the entire `xhr` key. Spread the existing defaults if you only want to change a few properties.
+</Warning>
+
+```javascript
+import Config from 'artha-js/core/Config.js';
+
+Config.set({
+  xhr: {
+    ...Config.get('xhr'),
+    timeout: 10000,
+    retry: true,
+    retry_delay: 3000,
+    with_credentials: true
+  }
+});
+```
+
+### Read nested values with dot-notation
+
+```javascript
+import Config from 'artha-js/core/Config.js';
+
+const timeout   = Config.get('xhr.timeout');        // 0
+const digits    = Config.get('money.digits');       // 2
+const missing   = Config.get('xhr.nonexistent', 'fallback'); // 'fallback'
+```

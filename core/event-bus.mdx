@@ -1,0 +1,174 @@
+---
+title: EventBus
+description: Lightweight publish/subscribe event bus built on EventTarget, for decoupled communication between components.
+---
+
+`EventBus` is a static class that wraps a single shared `EventTarget` instance. It lets any part of your application broadcast named events and subscribe to them without needing a direct reference between sender and receiver.
+
+## Methods
+
+### EventBus.emit(name, data)
+
+Dispatches a named event to all current subscribers.
+
+<ParamField path="name" type="string" required>
+  The event name. Must match the name used in `on()`, `once()`, or `off()`.
+</ParamField>
+
+<ParamField path="data" type="any">
+  Arbitrary payload attached to the event. Subscribers receive this value directly as the argument to their callback.
+</ParamField>
+
+```javascript
+EventBus.emit('user:login', { id: 42, name: 'Alice' });
+```
+
+---
+
+### EventBus.on(name, callback)
+
+Subscribes `callback` to every future emission of `name`. Returns an unsubscribe function.
+
+<ParamField path="name" type="string" required>
+  The event name to listen for.
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  Called each time the event fires. Receives `data` (the payload passed to `emit()`) as its only argument.
+</ParamField>
+
+**Returns:** `() => void` — call it to remove the listener.
+
+```javascript
+const unsubscribe = EventBus.on('user:login', (user) => {
+  console.log('Logged in:', user.name);
+});
+
+// Later, when the listener is no longer needed:
+unsubscribe();
+```
+
+---
+
+### EventBus.once(name, callback)
+
+Subscribes `callback` to the **next** emission of `name` only. The listener removes itself automatically after the first call.
+
+<ParamField path="name" type="string" required>
+  The event name to listen for once.
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  Called exactly one time with the event payload, then removed.
+</ParamField>
+
+```javascript
+EventBus.once('app:ready', () => {
+  console.log('App initialized — this fires once.');
+});
+```
+
+---
+
+### EventBus.off(name, callback)
+
+Removes a specific listener for `name`. You must pass the same function reference that was registered with `on()`.
+
+<ParamField path="name" type="string" required>
+  The event name the listener was registered under.
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  The exact function reference passed to `on()`. Anonymous functions cannot be removed this way — use the unsubscribe function returned by `on()` instead.
+</ParamField>
+
+```javascript
+function handleUpdate(data) {
+  console.log('Update:', data);
+}
+
+EventBus.on('data:update', handleUpdate);
+
+// Remove using the same reference:
+EventBus.off('data:update', handleUpdate);
+```
+
+<Tip>
+  Prefer the unsubscribe function returned by `EventBus.on()` over `EventBus.off()` when you register anonymous or arrow function callbacks, since you can't reconstruct the same reference to pass to `off()`.
+</Tip>
+
+## Patterns
+
+### Component-to-component communication
+
+```javascript
+import EventBus from 'artha-js/core/EventBus.js';
+
+// In a data service — emit when data changes
+class OrderService {
+  async refresh() {
+    const orders = await fetchOrders();
+    EventBus.emit('orders:updated', orders);
+  }
+}
+
+// In a UI component — react to the change
+class OrderList extends HTMLElement {
+  connectedCallback() {
+    this._unsub = EventBus.on('orders:updated', (orders) => {
+      this.render(orders);
+    });
+  }
+
+  disconnectedCallback() {
+    this._unsub?.();  // clean up when element is removed
+  }
+}
+```
+
+### ArthaContainer `refresh-on` attribute
+
+`ArthaContainer` components accept a `refresh-on` attribute containing a channel name. When that event fires on the `EventBus`, the container re-fetches its content automatically.
+
+```html
+<!-- This container reloads whenever 'orders:updated' is emitted -->
+<artha-container src="/partials/order-list" refresh-on="orders:updated"></artha-container>
+```
+
+```javascript
+// Trigger the refresh from anywhere in your application:
+EventBus.emit('orders:updated');
+```
+
+This pattern keeps the container completely decoupled from the code that triggers the refresh — no direct DOM queries or component references needed.
+
+### One-time initialization gate
+
+```javascript
+// Mark the app as ready after setup is complete:
+EventBus.emit('app:ready');
+
+// Any module that needs to run after init:
+EventBus.once('app:ready', () => {
+  startPolling();
+  loadUserPreferences();
+});
+```
+
+### Cleanup in web components
+
+```javascript
+class MyWidget extends HTMLElement {
+  connectedCallback() {
+    // Store the unsubscribe function on the instance
+    this._unsubCart = EventBus.on('cart:changed', (cart) => {
+      this.updateBadge(cart.itemCount);
+    });
+  }
+
+  disconnectedCallback() {
+    // Always clean up to avoid memory leaks
+    this._unsubCart?.();
+  }
+}
+```

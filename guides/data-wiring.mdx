@@ -1,0 +1,276 @@
+---
+title: Data wiring
+description: Bind JSON response fields to DOM elements declaratively using the data-wire attribute system in artha-container.
+---
+
+The `data-wire` attribute is the core rendering primitive in `<artha-container>`. When the container fetches data from its `action` endpoint, it walks the template DOM and uses `data-wire` to map JSON fields onto elements — no JavaScript required.
+
+## Basic wiring
+
+Place `data-wire` on any element inside your `<template>`. The attribute value is a comma-separated list of up to three parts:
+
+```
+data-wire="fieldName[,targetAttribute[,modifier]]"
+```
+
+### Set text content
+
+Omitting the target attribute sets the element's `textContent` from the named JSON key.
+
+```html index.html
+<artha-container action="/api/users" template="user-tpl"></artha-container>
+
+<template id="user-tpl">
+  <div class="user-card">
+    <strong data-wire="name"></strong>
+    <span data-wire="email"></span>
+  </div>
+</template>
+```
+
+Given the response `{ "id": 1, "name": "Alice", "email": "alice@example.com" }`, the rendered HTML becomes:
+
+```html rendered output
+<div class="user-card">
+  <strong>Alice</strong>
+  <span>alice@example.com</span>
+</div>
+```
+
+### Set an HTML attribute
+
+Specify any HTML attribute name as the second part to write the value there instead of `textContent`.
+
+```html index.html
+<template id="product-tpl">
+  <div class="product">
+    <img data-wire="thumbnail,src" alt="">
+    <a data-wire="slug,href">View product</a>
+    <p data-wire="description"></p>
+  </div>
+</template>
+```
+
+This sets `img.src` from `thumbnail` and `a.href` from `slug` in the JSON response.
+
+<Note>
+  `textcontent` and `innerhtml` are reserved target names handled specially. Any other value is treated as a literal HTML attribute name and passed to `setAttribute()`.
+</Note>
+
+## Append modifier
+
+Add `append` as the third part to concatenate the JSON value onto the element's existing content rather than replacing it.
+
+### Append to text content
+
+```html index.html
+<template id="item-tpl">
+  <div>
+    <!-- Element already has a prefix in the static HTML -->
+    <span data-wire="score,textcontent,append">Score: </span>
+  </div>
+</template>
+```
+
+If `score` is `"42"`, the result is `Score: 42`.
+
+### Append to an attribute
+
+Useful for building URLs with a shared base path.
+
+```html index.html
+<template id="file-tpl">
+  <div>
+    <a href="/files/" data-wire="filename,href,append">Download</a>
+  </div>
+</template>
+```
+
+If `filename` is `"report.pdf"`, the final `href` becomes `/files/report.pdf`.
+
+## Boolean and chooser rendering
+
+### Boolean rendering
+
+Use `boolean` as the target attribute to render a visual check or cross symbol based on the truthiness of the field value.
+
+```html index.html
+<template id="user-tpl">
+  <tr>
+    <td data-wire="name"></td>
+    <td data-wire="active,boolean"></td>
+  </tr>
+</template>
+```
+
+The container injects a `<span>` with the appropriate class and character:
+
+| Value        | Output HTML                                        |
+| ------------ | -------------------------------------------------- |
+| Truthy       | `<span class="check-cross check-cross-yes">✔</span>` |
+| Falsy        | `<span class="check-cross check-cross-no">✘</span>`  |
+
+Style these classes in your CSS. The `check-cross-yes` and `check-cross-no` selectors let you control color independently.
+
+### Chooser rendering
+
+Add `chooser` as the modifier to pick a `<template>` child by matching the field value against `data-chooser-value`.
+
+```html index.html
+<template id="order-tpl">
+  <div>
+    <span data-wire="status,boolean,chooser">
+      <template data-chooser-value="pending">⏳ Pending</template>
+      <template data-chooser-value="shipped">🚚 Shipped</template>
+      <template data-chooser-value="delivered">✅ Delivered</template>
+      <template data-chooser-default>❓ Unknown</template>
+    </span>
+  </div>
+</template>
+```
+
+- The element's inner `<template>` whose `data-chooser-value` matches the field value is cloned and inserted.
+- If no match is found, the `<template data-chooser-default>` element is used as a fallback.
+- If there is no default either, an empty `<span>` is inserted.
+
+<Tip>
+  The chooser pattern is ideal for status badges, icon selectors, or any field with a fixed set of discrete values.
+</Tip>
+
+## Array wiring
+
+Append `[]` to the field name to tell the container the value is an array. The container clones the first child element of the wired element once per array item.
+
+```html index.html
+<template id="post-tpl">
+  <article>
+    <h2 data-wire="title"></h2>
+    <ul data-wire="tags[]">
+      <!-- This li is cloned for each tag -->
+      <li>
+        <span fillable></span>
+      </li>
+    </ul>
+  </article>
+</template>
+```
+
+Given `{ "title": "Hello", "tags": ["js", "web", "components"] }`, the `<ul>` will contain three `<li>` elements.
+
+### The `[fillable]` attribute
+
+Any element inside the clone template that has the `fillable` attribute receives both `textContent` and `value` set to the current array item.
+
+```html index.html
+<template id="invoice-tpl">
+  <div>
+    <h3 data-wire="invoice_number"></h3>
+    <select data-wire="allowed_currencies[]">
+      <option fillable></option>
+    </select>
+  </div>
+</template>
+```
+
+Each `<option>` gets its `textContent` and `.value` set to the currency string from the array.
+
+### The `[iterable]` attribute and `onRenderItemIter`
+
+When artha-container finds an element with the `iterable` attribute inside a cloned array item, it calls the `onRenderItemIter` callback. Use this to apply custom logic that `fillable` alone cannot handle.
+
+```html index.html
+<template id="team-tpl">
+  <div>
+    <h2 data-wire="team_name"></h2>
+    <ul data-wire="members[]">
+      <li>
+        <span iterable></span>
+      </li>
+    </ul>
+  </div>
+</template>
+```
+
+```javascript app.js
+const container = document.querySelector('artha-container');
+
+// Called once per array item, per [iterable] element found
+container.onRenderItemIter = (parentItem, parentData, iterElement, iterData) => {
+  iterElement.textContent = iterData.toUpperCase();
+  iterElement.style.fontWeight = 'bold';
+};
+```
+
+**Callback parameters:**
+
+| Parameter    | Description                                              |
+| ------------ | -------------------------------------------------------- |
+| `parentItem` | The rendered parent element (the list item)              |
+| `parentData` | The full data object for the parent rendered item        |
+| `iterElement`| The element with the `iterable` attribute                |
+| `iterData`   | The current array element value                          |
+
+## Nested containers
+
+For deeply nested array structures, place an `<artha-container>` directly inside a template. The outer container passes the matched array value into the inner container's `render()` method automatically.
+
+```html index.html
+<template id="department-tpl">
+  <section>
+    <h2 data-wire="name"></h2>
+    <artha-container data-wire="employees[]" template="employee-tpl">
+    </artha-container>
+  </section>
+</template>
+
+<template id="employee-tpl">
+  <div class="employee">
+    <span data-wire="name"></span>
+    <span data-wire="role"></span>
+  </div>
+</template>
+```
+
+### Preventing wire descent with `data-ignore-wire`
+
+If you have an `<artha-container>` inside a template that manages its own independent data and should not be wired by the parent container's traversal, add `data-ignore-wire` to it.
+
+```html index.html
+<template id="page-tpl">
+  <div>
+    <h2 data-wire="title"></h2>
+    <!-- This inner container fetches its own data independently -->
+    <artha-container
+      data-ignore-wire
+      action="/api/sidebar-items"
+      template="sidebar-item-tpl">
+    </artha-container>
+  </div>
+</template>
+```
+
+The outer container's `_findWires()` traversal skips any `<artha-container>` that carries `data-ignore-wire`.
+
+## Callback hooks
+
+`<artha-container>` exposes three JavaScript callbacks you can set after selecting the element.
+
+| Callback              | When it fires                                              |
+| --------------------- | ---------------------------------------------------------- |
+| `onRenderItem`        | After each top-level item is rendered                      |
+| `onRenderItemFill`    | For each `[fillable]` element inside an array clone        |
+| `onRenderItemIter`    | For each `[iterable]` element inside an array clone        |
+
+```javascript app.js
+const container = document.querySelector('#users');
+
+container.onRenderItem = (element, data) => {
+  if (data.role === 'admin') {
+    element.classList.add('admin-row');
+  }
+};
+
+container.onRenderItemFill = (parentItem, parentData, fillElement, fillData) => {
+  console.log('Filling', fillElement, 'with', fillData);
+};
+```

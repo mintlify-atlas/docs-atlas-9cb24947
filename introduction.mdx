@@ -1,0 +1,104 @@
+---
+title: Introduction
+description: A lightweight JavaScript library of custom Web Components and core utilities for building dynamic, data-driven SPAs.
+---
+
+# artha-js
+
+artha-js is a lightweight, zero-dependency JavaScript library that provides a set of custom HTML elements (Web Components) and core utilities for building dynamic, data-driven single-page applications. It is designed to work directly in the browser with native ESM imports — no build tools or bundler required.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running with artha-js in minutes
+  </Card>
+  <Card title="ArthaContainer" icon="table" href="/components/artha-container">
+    Fetch and render dynamic lists from a remote API
+  </Card>
+  <Card title="ArthaForm" icon="file-pen" href="/components/artha-form">
+    Serialize and submit forms over XHR with feedback
+  </Card>
+  <Card title="Core Utilities" icon="wrench" href="/core/config">
+    Config, XHR, EventBus, TaskQueue, and Util
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Custom Web Components" icon="puzzle-piece">
+    Drop-in `<artha-container>`, `<artha-form>`, and `<artha-message>` elements that work with plain HTML
+  </Card>
+  <Card title="Data Wiring" icon="code-branch">
+    Declarative `data-wire` attribute binds JSON response fields directly to DOM elements
+  </Card>
+  <Card title="XHR Wrapper" icon="arrow-right-arrow-left">
+    Full-featured XMLHttpRequest wrapper with CSRF support, file uploads, query strings, retry, and progress events
+  </Card>
+  <Card title="Event Bus" icon="tower-broadcast">
+    Global publish/subscribe system built on the native `EventTarget` API — no external dependencies
+  </Card>
+  <Card title="Task Queue" icon="list-check">
+    Singleton queue that tracks in-flight async requests and surfaces feedback via `ArthaMessage`
+  </Card>
+  <Card title="Configuration" icon="gear">
+    Centralized `Config` class for locale, currency, XHR defaults, and task queue settings
+  </Card>
+</CardGroup>
+
+## How it works
+
+artha-js follows an HTML-first philosophy. You declare your UI structure in HTML, add a few attributes, and the library handles data fetching, rendering, and feedback automatically.
+
+```html index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="dist/artha.min.css">
+  <script type="module" src="dist/artha.min.js"></script>
+</head>
+<body>
+  <!-- Fetch /api/users and render each item using the template -->
+  <artha-container action="/api/users" template="user-template">
+    <artha-message></artha-message>
+  </artha-container>
+
+  <template id="user-template">
+    <div class="user-card">
+      <strong data-wire="name"></strong>
+      <span data-wire="email"></span>
+    </div>
+  </template>
+</body>
+</html>
+```
+
+The `data-wire` attribute maps JSON keys from the server response directly to DOM elements — no JavaScript required.
+
+## Project structure
+
+```
+artha-js/
+├── src/
+│   ├── core/
+│   │   ├── Config.js       # Global configuration
+│   │   ├── XHR.js          # XMLHttpRequest wrapper
+│   │   ├── EventBus.js     # Pub/sub event system
+│   │   ├── TaskQueue.js    # Async task tracking
+│   │   └── Util.js         # DOM helpers
+│   └── components/
+│       ├── artha-container.js   # Dynamic data container
+│       ├── artha-form.js        # XHR-powered form
+│       └── artha-message.js     # Status message display
+├── dist/
+│   ├── artha.min.js        # Bundled output
+│   └── artha.min.css       # Compiled styles
+└── index.html              # Demo page
+```
+
+## Browser compatibility
+
+artha-js uses modern browser APIs including Custom Elements v1, `XMLHttpRequest`, `EventTarget`, `FormData`, and ES modules. It targets evergreen browsers (Chrome, Firefox, Safari, Edge).
+
+<Note>
+  artha-js is designed to be included as a compiled bundle (`dist/artha.min.js`). You can also import individual modules directly via ESM if you use a bundler.
+</Note>

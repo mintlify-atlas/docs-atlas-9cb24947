@@ -1,0 +1,262 @@
+---
+title: XHR
+description: Thin XMLHttpRequest wrapper with automatic CSRF injection, query string building, FormData body construction, and retry support.
+---
+
+`XHR` is a static utility class that wraps the native `XMLHttpRequest` API. It merges per-call options with the defaults stored in [`Config`](/core/config) and handles repetitive tasks — CSRF tokens, query strings, `FormData` bodies, file uploads — so you don't have to.
+
+## XHR.request(options)
+
+Opens and sends an HTTP request. Returns the underlying `XMLHttpRequest` instance so you can abort it if needed.
+
+```javascript signature
+XHR.request(options: object): XMLHttpRequest
+```
+
+Options are merged with `Config.get("xhr")` defaults before the request is sent, so any key you omit falls back to the configured default.
+
+### Options
+
+<ParamField path="method" type="string" default="GET">
+  HTTP method: `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`, etc.
+</ParamField>
+
+<ParamField path="url" type="string | null" default="null">
+  Full URL for the request. When `null`, the URL is constructed as `"/" + uri`.
+</ParamField>
+
+<ParamField path="uri" type="string" default="">
+  Path segment used when `url` is `null`. For example, `"api/orders"` produces `/api/orders`.
+</ParamField>
+
+<ParamField path="headers" type="object" default="{}">
+  Additional request headers. The CSRF token header (`X-CSRF-Token`) is injected automatically and does not need to be included here.
+</ParamField>
+
+<ParamField path="data" type="object" default="{}">
+  Key-value pairs appended to the `FormData` body. Only used on non-GET requests.
+</ParamField>
+
+<ParamField path="query" type="object" default="{}">
+  Key-value pairs serialized into the query string. `null` values are filtered out automatically.
+</ParamField>
+
+<ParamField path="files" type="object" default="{}">
+  File fields appended to the `FormData` body. Values may be a single `File`, a `FileList`, or an `Array` of `File` objects. Arrays and `FileList` instances are appended as `key[]`.
+</ParamField>
+
+<ParamField path="response_type" type="string" default="json">
+  Sets `XMLHttpRequest.responseType`. Common values: `"json"`, `"blob"`, `"text"`, `"arraybuffer"`.
+</ParamField>
+
+<ParamField path="with_credentials" type="boolean" default="false">
+  Sets `XMLHttpRequest.withCredentials`. Enable for cross-origin requests that require cookies or HTTP auth.
+</ParamField>
+
+<ParamField path="timeout" type="number" default="0">
+  Request timeout in milliseconds. `0` disables the timeout.
+</ParamField>
+
+<ParamField path="retry" type="boolean" default="false">
+  When `true`, the full request is automatically retried after a network `error` or `timeout` event.
+</ParamField>
+
+<ParamField path="retry_delay" type="number" default="5000">
+  Milliseconds to wait before retrying. Only used when `retry` is `true`.
+</ParamField>
+
+<ParamField path="onLoad" type="function">
+  Called with the `XMLHttpRequest` object when a response is received, regardless of HTTP status.
+
+  ```javascript
+  onLoad: (xhr) => { console.log('Response received', xhr.status); }
+  ```
+</ParamField>
+
+<ParamField path="onData" type="function">
+  Called with `(xhr, response)` when the HTTP status is between 200 and 299 (inclusive).
+
+  ```javascript
+  onData: (xhr, response) => { console.log('Success', response); }
+  ```
+</ParamField>
+
+<ParamField path="onError" type="function">
+  Called with `response` on non-2xx HTTP statuses **and** on network-level errors.
+
+  ```javascript
+  onError: (response) => { console.error('Error', response); }
+  ```
+</ParamField>
+
+<ParamField path="onTimeout" type="function">
+  Called with `response` when the request times out.
+
+  ```javascript
+  onTimeout: (response) => { console.warn('Timed out'); }
+  ```
+</ParamField>
+
+<ParamField path="onProgress" type="function">
+  Called with `(event, loaded, total)` as the transfer progresses.
+
+  ```javascript
+  onProgress: (event, loaded, total) => {
+    console.log(`${loaded} / ${total} bytes`);
+  }
+  ```
+</ParamField>
+
+<ParamField path="onAbort" type="function">
+  Called with `response` when the request is aborted via `xhr.abort()`.
+
+  ```javascript
+  onAbort: (response) => { console.log('Request aborted'); }
+  ```
+</ParamField>
+
+<ParamField path="onAction" type="function">
+  Called with the `XMLHttpRequest` object immediately before `xhr.send()`. Use this to store a reference so you can abort the request later.
+
+  ```javascript
+  onAction: (xhr) => { this.currentRequest = xhr; }
+  ```
+</ParamField>
+
+## CSRF token auto-injection
+
+Before opening the request, `XHR.request()` calls `Util.getMeta("csrf-token")` and falls back to `Util.getMeta("csrf_token")`. If a token is found:
+
+- The `X-CSRF-Token` request header is set on every request.
+- The token is also appended as `csrf_token` inside the `FormData` body on non-GET requests.
+
+No configuration is required — just include a standard meta tag in your HTML:
+
+```html
+<meta name="csrf-token" content="your-token-here">
+```
+
+## Query string building
+
+The `query` object is serialized into a URL-encoded query string using `encodeURIComponent`. Keys whose value is `null` are silently dropped.
+
+```javascript
+XHR.request({
+  uri: 'api/products',
+  query: {
+    category: 'electronics',
+    page: 2,
+    archived: null   // filtered out — won't appear in the URL
+  }
+});
+// Opens: /api/products?category=electronics&page=2
+```
+
+## FormData body and `_method` override
+
+For any method other than `GET`, the request body is a `FormData` instance. The string `"_method"` is always appended with the actual HTTP method value. This is the standard approach for routing PUT/PATCH/DELETE through HTML forms and many server frameworks.
+
+```javascript
+XHR.request({
+  method: 'PUT',
+  uri: 'api/users/42',
+  data: { name: 'Alice' }
+});
+// FormData body contains:
+//   _method = PUT
+//   csrf_token = <token from meta tag>
+//   name = Alice
+```
+
+## Examples
+
+### GET request with query parameters
+
+```javascript
+import XHR from 'artha-js/core/XHR.js';
+
+XHR.request({
+  method: 'GET',
+  uri: 'api/orders',
+  query: { status: 'pending', page: 1 },
+  onData: (xhr, response) => {
+    console.log('Orders:', response);
+  },
+  onError: (response) => {
+    console.error('Failed to load orders:', response);
+  }
+});
+```
+
+### POST with form data
+
+```javascript
+XHR.request({
+  method: 'POST',
+  uri: 'api/orders',
+  data: {
+    product_id: 99,
+    quantity: 3
+  },
+  onData: (xhr, response) => {
+    console.log('Order created:', response);
+  }
+});
+```
+
+### File upload with progress tracking
+
+```javascript
+const fileInput = document.querySelector('#avatar');
+
+XHR.request({
+  method: 'POST',
+  uri: 'api/profile/avatar',
+  files: {
+    avatar: fileInput.files[0]
+  },
+  onProgress: (event, loaded, total) => {
+    const percent = Math.round((loaded / total) * 100);
+    console.log(`Upload: ${percent}%`);
+  },
+  onData: (xhr, response) => {
+    console.log('Upload complete:', response);
+  }
+});
+```
+
+### Retry on error or timeout
+
+```javascript
+XHR.request({
+  uri: 'api/sync',
+  timeout: 8000,
+  retry: true,
+  retry_delay: 3000,   // wait 3 s before retrying
+  onData: (xhr, response) => {
+    console.log('Synced:', response);
+  },
+  onTimeout: () => {
+    console.warn('Timed out — retrying in 3 s...');
+  }
+});
+```
+
+### Aborting a request
+
+```javascript
+let activeXhr = null;
+
+XHR.request({
+  uri: 'api/reports/generate',
+  onAction: (xhr) => {
+    activeXhr = xhr;  // store reference before send
+  },
+  onAbort: () => {
+    console.log('Report generation cancelled.');
+  }
+});
+
+// Cancel from anywhere:
+activeXhr?.abort();
+```

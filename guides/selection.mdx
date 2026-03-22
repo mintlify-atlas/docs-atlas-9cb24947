@@ -1,0 +1,240 @@
+---
+title: Selection
+description: Enable single or multi-item selection in artha-container and read or set the selected values programmatically.
+---
+
+`<artha-container>` includes a built-in selection system. When enabled, clicking a rendered item toggles its selection state, applies a CSS class, and fires events. You can also read and set the selection entirely from JavaScript.
+
+## Enabling selection
+
+Add the `selectable` attribute to opt in. By default this enables single-item selection.
+
+```html index.html
+<artha-container
+  id="user-list"
+  action="/api/users"
+  template="user-tpl"
+  selectable>
+</artha-container>
+```
+
+To allow the user to select more than one item at a time, also add the `multiple` attribute.
+
+```html index.html
+<artha-container
+  id="user-list"
+  action="/api/users"
+  template="user-tpl"
+  selectable
+  multiple>
+</artha-container>
+```
+
+<Note>
+  Without `selectable`, `container.value` always returns `null` and setting it has no effect.
+</Note>
+
+## Reading the selection
+
+### `container.value` getter
+
+Returns the current selection as either a single ID string (single-select) or an array of ID strings (multi-select).
+
+```javascript app.js
+const container = document.querySelector('#user-list');
+
+// Single-select: returns a string or null
+const selectedId = container.value;
+// e.g. "42"
+
+// Multi-select: returns an array (may be empty)
+const selectedIds = container.value;
+// e.g. ["42", "17"]
+```
+
+The IDs come from the `data.id` field of each rendered item. The container stores them as strings using `element.dataset.id`.
+
+### `container.selection()`
+
+Returns the internal `SelectionStore` instance, which gives you richer access to the current selection.
+
+```javascript app.js
+const store = container.selection();
+```
+
+### `SelectionStore` methods
+
+| Method          | Returns                                  | Description                                                    |
+| --------------- | ---------------------------------------- | -------------------------------------------------------------- |
+| `toValues()`    | `string[]`                               | Array of selected ID strings                                   |
+| `toElements()`  | `Array<[string, HTMLElement]>`           | Array of `[id, element]` pairs from the internal `Map`         |
+| `toData()`      | `Array<[string, object]>`                | Array of `[id, data]` pairs from the internal `Map`            |
+| `toArray()`     | `Array<{value, element, data}>`          | Array of objects combining all three stores                    |
+| `has(value)`    | `boolean`                                | Returns `true` if the given ID is currently selected           |
+| `clear()`       | `SelectionStore`                         | Empties all stores and returns `this`                          |
+
+```javascript app.js
+const store = container.selection();
+
+// Check if a specific ID is selected
+if (store.has('42')) {
+  console.log('User 42 is selected');
+}
+
+// Get full objects for all selected items
+const selected = store.toArray();
+selected.forEach(({ value, element, data }) => {
+  console.log(value, data.name);
+});
+
+// Get the raw data objects as [id, data] pairs
+const pairs = store.toData();
+```
+
+## Setting selection programmatically
+
+Assign to `container.value` to select items by ID. The setter accepts a string (single) or an array of strings (multi).
+
+```javascript app.js
+const container = document.querySelector('#user-list');
+
+// Select a single item
+container.value = '42';
+
+// Select multiple items (only effective when [multiple] is set)
+container.value = ['42', '17', '5'];
+```
+
+<Warning>
+  The setter iterates `container.items`, so it only works after the container has rendered its data. Call it inside the `dynamic-content-loaded` event handler if you need to pre-select on load.
+</Warning>
+
+```javascript app.js
+container.addEventListener('dynamic-content-loaded', () => {
+  container.value = '42';
+});
+```
+
+## Selection events
+
+The container dispatches `CustomEvent` on itself whenever an item is selected or deselected by a click.
+
+### `item-selected`
+
+Fired when the user clicks an unselected item.
+
+```javascript app.js
+container.addEventListener('item-selected', (evt) => {
+  const { value, element, data } = evt.detail;
+  console.log('Selected ID:', value);
+  console.log('DOM element:', element);
+  console.log('Item data:', data);
+});
+```
+
+### `item-deselected`
+
+Fired when the user clicks a currently selected item to deselect it.
+
+```javascript app.js
+container.addEventListener('item-deselected', (evt) => {
+  const { value, element, data } = evt.detail;
+  console.log('Deselected ID:', value);
+});
+```
+
+**Event detail shape** (same for both events):
+
+| Property   | Type          | Description                                    |
+| ---------- | ------------- | ---------------------------------------------- |
+| `value`    | `string`      | The `data.id` of the item as a string          |
+| `element`  | `HTMLElement` | The rendered DOM element for the item          |
+| `data`     | `object`      | The original JSON data object for the item     |
+
+## Resetting selection
+
+Call `container.reset()` to clear all selections and remove the `.selected` CSS class from every item. This is called automatically in single-select mode before a new item is selected.
+
+```javascript app.js
+document.querySelector('#clear-btn').addEventListener('click', () => {
+  container.reset();
+});
+```
+
+## CSS class
+
+When an item is selected, the container toggles the `.selected` class on the item's root `[data-id]` element. Use this to style selected items.
+
+```css styles.css
+/* Highlight the selected row in a table */
+artha-container tr.selected {
+  background-color: #e8f4fd;
+  outline: 2px solid #3a87ad;
+}
+
+/* Card-style selection */
+artha-container .user-card.selected {
+  border-color: #468847;
+  box-shadow: 0 0 0 3px rgba(70, 136, 71, 0.25);
+}
+```
+
+## Complete example: select a user
+
+The following example shows a full "select a user" pattern — a list that highlights the chosen user and displays their name in a separate panel.
+
+```html index.html
+<artha-container
+  id="user-picker"
+  action="/api/users"
+  template="user-item-tpl"
+  selectable>
+  <artha-message></artha-message>
+</artha-container>
+
+<template id="user-item-tpl">
+  <div class="user-row">
+    <span data-wire="name"></span>
+    <span data-wire="email"></span>
+  </div>
+</template>
+
+<p>Selected user: <strong id="selected-name">None</strong></p>
+
+<button id="clear-btn">Clear selection</button>
+```
+
+```javascript app.js
+const container = document.querySelector('#user-picker');
+const selectedName = document.querySelector('#selected-name');
+
+container.addEventListener('item-selected', (evt) => {
+  selectedName.textContent = evt.detail.data.name;
+});
+
+container.addEventListener('item-deselected', () => {
+  selectedName.textContent = 'None';
+});
+
+document.querySelector('#clear-btn').addEventListener('click', () => {
+  container.reset();
+  selectedName.textContent = 'None';
+});
+```
+
+```css styles.css
+.user-row {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.user-row:hover {
+  background-color: #f5f5f5;
+}
+
+.user-row.selected {
+  background-color: #d9edf7;
+  font-weight: bold;
+}
+```

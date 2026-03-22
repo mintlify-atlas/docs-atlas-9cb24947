@@ -1,0 +1,425 @@
+---
+title: artha-container
+description: The core data-fetching and rendering component. Fetches JSON from a URL, clones a template per item, and wires data fields to the DOM.
+---
+
+`<artha-container>` is the primary component in artha-js. It fetches JSON data from a server, clones a `<template>` element for each record, and maps JSON fields to the DOM using `data-wire` attributes. It also handles pagination, search, and item selection.
+
+## Basic usage
+
+```html index.html
+<artha-container
+  action="/api/users"
+  template="user-template"
+></artha-container>
+
+<template id="user-template">
+  <div>
+    <span data-wire="name"></span>
+    <span data-wire="email"></span>
+  </div>
+</template>
+```
+
+On mount, `<artha-container>` calls `GET /api/users`, expects a JSON response with a `data` array, and appends one cloned `<template>` element per item with the wired fields filled in.
+
+## HTML attributes
+
+<ParamField path="action" type="string">
+  The URL to fetch data from. When omitted, no XHR request is made and data must be supplied via `render()` or `refreshWithData()` directly.
+</ParamField>
+
+<ParamField path="template" type="string">
+  The `id` of a `<template>` element to clone for each item in the response. The first child of the template is used as the item element.
+</ParamField>
+
+<ParamField path="method" type="string" default="GET">
+  HTTP method to use when fetching data. Defaults to `GET`.
+</ParamField>
+
+<ParamField path="pagination" type="string">
+  When present, enables pagination. The attribute value is passed through to the component's `pagination` property.
+</ParamField>
+
+<ParamField path="message" type="string">
+  Selector or reference used to find an `<artha-message>` element for displaying loading and error messages. The component first looks for a direct `<artha-message>` child, then falls back to the element matched by `message-target`.
+</ParamField>
+
+<ParamField path="message-target" type="string">
+  A CSS selector for an `<artha-message>` element located elsewhere in the document.
+</ParamField>
+
+<ParamField path="searcher" type="boolean">
+  When present, enables built-in search behavior. If an `<input-search>` child element is found, the component listens for its `search` event and calls `refresh(query)` when `action` is set, or filters existing items client-side by text content when it is not.
+</ParamField>
+
+<ParamField path="selectable" type="boolean">
+  When present, makes each rendered item clickable. Clicking an item adds or removes it from the internal `SelectionStore` and dispatches `item-selected` or `item-deselected` events.
+</ParamField>
+
+<ParamField path="multiple" type="boolean">
+  When present alongside `selectable`, allows more than one item to be selected at a time. Without `multiple`, selecting a new item calls `reset()` first.
+</ParamField>
+
+<ParamField path="refresh-on" type="string">
+  A comma-separated list of EventBus channel names. When any of these channels emits an event, the container refreshes. If the event carries a `detail` payload, `refreshWithData(detail)` is called; otherwise `refresh()` is called.
+</ParamField>
+
+## JavaScript API
+
+### Properties
+
+#### `value`
+
+Getter and setter for the currently selected item IDs.
+
+- **Get** — returns a single ID string when `multiple` is not set, or an array of ID strings when it is. Returns `null` if `selectable` is not set.
+- **Set** — accepts a string or array of strings. Clears the current selection, then marks matching items (by `data-id`) as selected.
+
+```javascript
+// Read the current selection
+const id = container.value;          // single-select: "42"
+const ids = container.value;         // multi-select:  ["42", "7"]
+
+// Programmatically select items
+container.value = "42";
+container.value = ["42", "7"];       // multi-select
+```
+
+### Methods
+
+#### `render(results, refresh, refresh_children)`
+
+Render an array of data objects, replacing all current items.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `results` | `Array\|Object` | — | Data to render. Wrapped in an array if not already one. |
+| `refresh` | `boolean` | `false` | If `true`, calls `refresh()` before rendering. |
+| `refresh_children` | `boolean` | `true` | Passed through to each `renderItem()` call. |
+
+After all items are rendered, dispatches the `dynamic-content-loaded` event.
+
+```javascript
+container.render([
+  { id: 1, name: "Alice" },
+  { id: 2, name: "Bob" },
+]);
+```
+
+#### `renderItem(data, refresh_children, update)`
+
+Render or update a single item.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `data` | `Object` | — | The data object for this item. |
+| `refresh_children` | `boolean` | `true` | Whether to refresh nested `<artha-container>` children. |
+| `update` | `Element\|null` | `null` | An existing DOM element to update in place. When `null`, a new element is cloned from the template and appended. |
+
+Calls `onRenderItem(element, data)` after wiring. Dispatches the `item-rendered` event.
+
+#### `refresh(search)`
+
+Clear the rendered content and re-fetch from the server.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `search` | `string\|null` | `null` | Optional search query appended as `?search=…` to the request URL. |
+
+```javascript
+container.refresh();              // full reload
+container.refresh("alice");       // reload with search filter
+```
+
+#### `refreshWithData(data)`
+
+Update a single already-rendered item in place by matching its `data-id` attribute.
+
+| Parameter | Type | Description |
+|---|---| ---|
+| `data` | `Object` | Must have an `id` field matching the `data-id` of an existing item element. |
+
+```javascript
+container.refreshWithData({ id: 42, name: "Alice Updated" });
+```
+
+#### `reset()`
+
+Clear all selections without re-fetching data. Removes the `selected` CSS class from every item and clears the internal `SelectionStore`.
+
+```javascript
+container.reset();
+```
+
+#### `selection()`
+
+Returns the internal `SelectionStore` instance.
+
+The `SelectionStore` exposes these methods:
+
+| Method | Returns | Description |
+|---|---|---|
+| `toValues()` | `string[]` | Array of selected ID strings. |
+| `toElements()` | `Array` | Array of selected DOM element entries. |
+| `toData()` | `Array` | Array of selected data object entries. |
+| `toArray()` | `Array` | Array of `{ value, element, data }` objects. |
+| `has(value)` | `boolean` | Whether an ID is currently selected. |
+
+```javascript
+const store = container.selection();
+console.log(store.toValues());   // ["42", "7"]
+console.log(store.toArray());    // [{ value: "42", element: <div>, data: {…} }, …]
+```
+
+#### `getData(search)`
+
+Trigger the XHR fetch directly. Called internally by `refresh()`. Only executes if `action` is set.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `search` | `string\|null` | `null` | Optional search query. |
+
+## Events
+
+<AccordionGroup>
+  <Accordion title="load">
+    Fired when the XHR request completes (regardless of status code). The `detail` is the raw `XMLHttpRequest` object.
+
+    ```javascript
+    container.addEventListener('load', (evt) => {
+      console.log('HTTP status:', evt.detail.status);
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="resolve">
+    Fired after a successful response has been parsed as JSON. The `detail` is the parsed JSON object from the server.
+
+    ```javascript
+    container.addEventListener('resolve', (evt) => {
+      console.log('Server JSON:', evt.detail);
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="dynamic-content-loaded">
+    Fired after all items in a `render()` call have been appended to the DOM. The `detail` is the array of data objects that was rendered.
+
+    ```javascript
+    container.addEventListener('dynamic-content-loaded', (evt) => {
+      console.log(`Rendered ${evt.detail.length} items`);
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="item-rendered">
+    Fired for each item after it is rendered. The `detail` is `{ item, data, index }`.
+
+    ```javascript
+    container.addEventListener('item-rendered', (evt) => {
+      const { item, data, index } = evt.detail;
+      console.log(`Item ${index} rendered:`, data);
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="item-selected">
+    Fired when a selectable item is clicked and added to the selection. The `detail` is `{ value, element, data }`.
+
+    ```javascript
+    container.addEventListener('item-selected', (evt) => {
+      const { value, element, data } = evt.detail;
+      console.log('Selected ID:', value, 'Data:', data);
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="item-deselected">
+    Fired when a previously selected item is clicked again and removed from the selection. The `detail` is `{ value, element, data }`.
+
+    ```javascript
+    container.addEventListener('item-deselected', (evt) => {
+      const { value, element, data } = evt.detail;
+      console.log('Deselected ID:', value);
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Render callbacks
+
+Assign functions to these properties directly on the element instance to hook into the render lifecycle. All three default to no-ops.
+
+### `onRenderItem(element, data)`
+
+Called once per item after all `data-wire` fields are filled. Use this to apply custom DOM manipulation after standard wiring.
+
+```javascript
+container.onRenderItem = (element, data) => {
+  if (data.active) {
+    element.classList.add('active');
+  }
+};
+```
+
+### `onRenderItemFill(element, data, fill_element, fill_data)`
+
+Called for each `[fillable]` element inside an array wire (`data-wire="field[]"`). Use this to customise how individual array values are applied to fillable nodes before the default `textContent`/`value` assignment.
+
+```javascript
+container.onRenderItemFill = (element, data, fill_element, fill_data) => {
+  fill_element.style.color = fill_data.startsWith('#') ? fill_data : '';
+};
+```
+
+### `onRenderItemIter(element, data, iter_element, iter_data)`
+
+Called for each `[iterable]` element inside an array wire (`data-wire="field[]"`). Unlike `[fillable]`, the default behaviour does not write anything to `[iterable]` elements — all logic must be provided here.
+
+```javascript
+container.onRenderItemIter = (element, data, iter_element, iter_data) => {
+  iter_element.dataset.value = iter_data;
+};
+```
+
+## Data wiring
+
+The `data-wire` attribute connects a JSON field to a DOM element inside the template. The attribute value uses a comma-separated format:
+
+```
+data-wire="fieldName[,targetType[,modifier]]"
+```
+
+<Tabs>
+  <Tab title="Text content">
+    Writes the value as `textContent` (default when no second segment is given).
+
+    ```html
+    <span data-wire="name"></span>
+    <span data-wire="email,textcontent"></span>
+    ```
+  </Tab>
+
+  <Tab title="HTML attribute">
+    Sets an HTML attribute on the element. The second segment is the attribute name.
+
+    ```html
+    <!-- Sets the href attribute from the data field "url" -->
+    <a data-wire="url,href">Visit</a>
+
+    <!-- Sets a custom data-* attribute -->
+    <div data-wire="status,data-status"></div>
+    ```
+  </Tab>
+
+  <Tab title="Append">
+    Appends the value to the existing content rather than replacing it. The third segment must be `append`.
+
+    ```html
+    <!-- Appends to existing text -->
+    <span data-wire="suffix,textcontent,append">Prefix: </span>
+
+    <!-- Appends to an existing attribute value -->
+    <a data-wire="slug,href,append" href="/products/">View</a>
+    ```
+  </Tab>
+
+  <Tab title="Boolean">
+    Renders a `✔` or `✘` `<span>` depending on the truthiness of the value. The second segment must be `boolean`.
+
+    ```html
+    <td data-wire="is_active,boolean"></td>
+    ```
+
+    The rendered `<span>` receives:
+    - Class `check-cross check-cross-yes` and text `✔` for truthy values.
+    - Class `check-cross check-cross-no` and text `✘` for falsy values.
+  </Tab>
+
+  <Tab title="Chooser">
+    Selects a `<template data-chooser-value>` child whose `data-chooser-value` matches the field value, and renders its content. The third segment must be `chooser`. Falls back to `<template data-chooser-default>` if no match is found.
+
+    ```html
+    <td data-wire="status,boolean,chooser">
+      <template data-chooser-value="active">
+        <span class="badge badge-success">Active</span>
+      </template>
+      <template data-chooser-value="suspended">
+        <span class="badge badge-warning">Suspended</span>
+      </template>
+      <template data-chooser-default>
+        <span class="badge badge-secondary">Unknown</span>
+      </template>
+    </td>
+    ```
+  </Tab>
+
+  <Tab title="Array">
+    Renders an array field by repeating a child template once per item. The field name must end with `[]`. The container element must have a single child that is cloned per array entry. Each clone's `[fillable]` children receive the item value as `textContent` and `value`; `[iterable]` children are passed to `onRenderItemIter`.
+
+    ```html
+    <ul data-wire="tags[]">
+      <li>
+        <span fillable></span>
+      </li>
+    </ul>
+    ```
+  </Tab>
+</Tabs>
+
+## Complete example
+
+The following example renders a user list with selection, a search input, and a message area.
+
+```html
+<artha-message id="users-message"></artha-message>
+
+<artha-container
+  id="users-container"
+  action="/api/users"
+  template="user-item-template"
+  selectable
+  message-target="#users-message"
+></artha-container>
+
+<template id="user-item-template">
+  <div class="user-card">
+    <strong data-wire="name"></strong>
+    <span data-wire="email"></span>
+    <span data-wire="is_admin,boolean"></span>
+    <ul data-wire="roles[]">
+      <li><span fillable></span></li>
+    </ul>
+  </div>
+</template>
+
+<script type="module">
+  const container = document.querySelector('#users-container');
+
+  container.onRenderItem = (element, data) => {
+    if (data.is_admin) element.classList.add('admin');
+  };
+
+  container.addEventListener('item-selected', (evt) => {
+    console.log('Selected user:', evt.detail.data);
+  });
+
+  container.addEventListener('dynamic-content-loaded', (evt) => {
+    console.log(`Loaded ${evt.detail.length} users`);
+  });
+</script>
+```
+
+<Note>
+  The server response must be a JSON object with a `data` field containing an array of records. Each record should have an `id` field used for selection and in-place updates.
+
+  ```json
+  {
+    "data": [
+      { "id": 1, "name": "Alice", "email": "alice@example.com", "is_admin": true, "roles": ["editor"] },
+      { "id": 2, "name": "Bob",   "email": "bob@example.com",  "is_admin": false, "roles": [] }
+    ]
+  }
+  ```
+</Note>

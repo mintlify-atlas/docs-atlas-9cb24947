@@ -1,0 +1,268 @@
+---
+title: artha-form
+description: A custom element that wraps HTML inputs, serializes them, and submits them via XHR — without a page reload.
+---
+
+`<artha-form>` collects values from any named `<input>`, `<select>`, or `<textarea>` inside it, submits them as `FormData` via XHR, and dispatches `load` and `resolve` events with the server response. It automatically creates an `<artha-message>` child if none is found.
+
+## Basic usage
+
+```html
+<artha-form action="/api/users" method="POST">
+  <input name="name" type="text" required />
+  <input name="email" type="email" required />
+  <button type="submit">Save</button>
+</artha-form>
+```
+
+When the submit button is clicked (or the form is submitted), `<artha-form>` collects all named inputs and sends them to `/api/users` via `POST`.
+
+## HTML attributes
+
+<ParamField path="action" type="string">
+  The URL the form submits to.
+</ParamField>
+
+<ParamField path="method" type="string" default="GET">
+  The HTTP method to use. Defaults to `GET`.
+</ParamField>
+
+<ParamField path="response-type" type="string" default="json">
+  The `XMLHttpRequest` response type. Defaults to `json`.
+</ParamField>
+
+<ParamField path="disable-submit" type="boolean">
+  When present, prevents the form from submitting when the user presses Enter inside a text input, and suppresses the default `submit` event handler. You can still call `submit()` programmatically.
+</ParamField>
+
+## JavaScript API
+
+### `loadInputs(selector)`
+
+Re-scans the element for form controls and rebuilds the internal input list. Call this after dynamically inserting inputs into the form.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `selector` | `string` | `"input,select,textarea"` | CSS selector used to find inputs. |
+
+After calling `loadInputs()`, every found input with a `name` attribute is also exposed as a direct property on the form element: `form.inputName`.
+
+```javascript
+const form = document.querySelector('artha-form');
+
+// After dynamically adding a new input:
+form.loadInputs();
+console.log(form.email.value);
+```
+
+### `getValue(name)`
+
+Get the current value of a named input.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | `string` | The `name` attribute of the input. |
+
+Returns the element's `value` as a string, or `1` / `0` for checkboxes (checked / unchecked). Returns `null` if no matching input is found.
+
+```javascript
+console.log(form.getValue('email'));      // "alice@example.com"
+console.log(form.getValue('subscribe'));  // 1 or 0
+```
+
+### `input(name)`
+
+Get a reference to a named input element. If the element is not already a property on the form, it is added.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | `string` | The `name` attribute of the input. |
+
+Returns the DOM element, or `null` if not found.
+
+```javascript
+const emailInput = form.input('email');
+emailInput.setAttribute('disabled', '');
+```
+
+### `reset(reset_message)`
+
+Clear all input values. Checkboxes are unchecked; all other inputs are set to `''`.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `reset_message` | `boolean` | `true` | When `true`, also calls `resetMessage()` to hide the message element. |
+
+```javascript
+form.reset();          // clears inputs and hides message
+form.reset(false);     // clears inputs only, leaves message visible
+```
+
+### `resetMessage()`
+
+Hide the associated `<artha-message>` element without affecting the inputs.
+
+```javascript
+form.resetMessage();
+```
+
+### `checkValidity()`
+
+Run HTML5 constraint validation on all form inputs. Returns `true` if every input passes its built-in validity check, `false` as soon as the first invalid input is found.
+
+```javascript
+if (!form.checkValidity()) {
+  console.warn('Form is invalid');
+  return;
+}
+form.submit();
+```
+
+### `submit()`
+
+Collect all named input values and send them to `action` using `method`. Triggered automatically when a `submit` event fires (unless `disable-submit` is set), or when any button without an explicit `type` or with `type="submit"` is clicked.
+
+Checkboxes are serialized as `1` (checked) or `0` (unchecked). File inputs are not included — use standard `FormData` handling for file uploads.
+
+```javascript
+// Programmatic submission
+form.submit();
+```
+
+### `fillFromJson(json, reset)`
+
+Populate inputs from a plain JSON object. Each key in `json` is matched to an input by its `name` attribute.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `json` | `Object` | — | Key-value map of input names to values. |
+| `reset` | `boolean` | `true` | When `true`, calls `reset(false)` before filling so no stale values remain. |
+
+```javascript
+form.fillFromJson({
+  name: "Alice",
+  email: "alice@example.com",
+});
+
+// Fill without clearing first
+form.fillFromJson({ email: "new@example.com" }, false);
+```
+
+<Note>
+  `fillFromJson` is called automatically after a successful submission using the `json.data` field from the server response. You can also call it manually, for example when pre-populating an edit form.
+</Note>
+
+## Events
+
+<AccordionGroup>
+  <Accordion title="load">
+    Fired when the XHR request completes (regardless of HTTP status). The `detail` is the raw `XMLHttpRequest` object.
+
+    ```javascript
+    form.addEventListener('load', (evt) => {
+      console.log('HTTP status:', evt.detail.status);
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="resolve">
+    Fired after a successful (2xx) response has been parsed as JSON. The `detail` is the parsed JSON object.
+
+    ```javascript
+    form.addEventListener('resolve', (evt) => {
+      console.log('Server response:', evt.detail);
+      if (evt.detail.redirect) {
+        window.location.href = evt.detail.redirect;
+      }
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Buttons
+
+Buttons inside `<artha-form>` are bound automatically in the constructor:
+
+| `type` attribute | Behaviour |
+|---|---|
+| `submit` | Calls `submit()` on click. |
+| `reset` | Calls `reset()` on click. |
+| Anything else (including omitted) | Calls `submit()` on click. |
+
+```html
+<artha-form action="/api/profile" method="POST">
+  <input name="bio" type="text" />
+  <button type="submit">Save</button>
+  <button type="reset">Discard</button>
+</artha-form>
+```
+
+<Warning>
+  Buttons are bound once during construction. Buttons added dynamically after the element is created will not be bound automatically — call `_bindEvents()` is not part of the public API. Add a `click` listener manually to dynamically added buttons and call `form.submit()` or `form.reset()` as needed.
+</Warning>
+
+## Message element
+
+`<artha-form>` finds its message element in this order:
+
+1. A direct `<artha-message>` child.
+2. The element matched by the `message-target` attribute (used as a CSS selector).
+3. A newly created `<artha-message>` appended as a child (fallback).
+
+The message element shows a warning while the request is in flight and displays server error or success messages from the JSON response automatically.
+
+```html
+<!-- Explicit message element -->
+<artha-form action="/api/login" method="POST">
+  <artha-message></artha-message>
+  <input name="username" type="text" />
+  <input name="password" type="password" />
+  <button type="submit">Log in</button>
+</artha-form>
+```
+
+## Complete example
+
+<CodeGroup>
+
+```html HTML
+<artha-form id="edit-form" action="/api/users/1" method="POST">
+  <artha-message></artha-message>
+
+  <label>
+    Name
+    <input name="name" type="text" required />
+  </label>
+
+  <label>
+    Email
+    <input name="email" type="email" required />
+  </label>
+
+  <label>
+    <input name="active" type="checkbox" />
+    Active
+  </label>
+
+  <button type="submit">Save</button>
+  <button type="reset">Cancel</button>
+</artha-form>
+```
+
+```javascript JavaScript
+const form = document.querySelector('#edit-form');
+
+// Pre-populate with existing data
+form.fillFromJson({
+  name: "Alice",
+  email: "alice@example.com",
+  active: 1,
+});
+
+// Listen for the server response
+form.addEventListener('resolve', (evt) => {
+  console.log('Saved:', evt.detail);
+});
+```
+
+</CodeGroup>

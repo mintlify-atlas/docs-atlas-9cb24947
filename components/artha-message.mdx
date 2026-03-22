@@ -1,0 +1,199 @@
+---
+title: artha-message
+description: A lightweight custom element for displaying status messages — errors, info notices, warnings, and success confirmations.
+---
+
+`<artha-message>` is a simple display element for feedback messages. It is used internally by `<artha-container>` and `<artha-form>` to surface loading, error, and success states, and can also be used standalone anywhere in your markup.
+
+The element is hidden on connect (`connectedCallback` calls `hidden()` immediately) and only becomes visible when one of the show methods is called.
+
+## Basic usage
+
+```html
+<artha-message></artha-message>
+
+<script type="module">
+  const msg = document.querySelector('artha-message');
+  msg.success('Profile saved successfully.');
+</script>
+```
+
+## HTML attributes
+
+<ParamField path="type" type="string" default="info">
+  Sets the initial visual type of the message element. Accepted values: `error`, `info`, `success`, `warning`. Applied via `setAttribute('type', …)` when a message is shown.
+</ParamField>
+
+## Static type constants
+
+`ArthaMessage.TYPE` is a frozen object with four entries. Each entry has a `code` (number) and a `name` (string) used when setting the `type` attribute.
+
+| Constant | `code` | `name` |
+|---|---|---|
+| `ArthaMessage.TYPE.ERROR` | `-1` | `"error"` |
+| `ArthaMessage.TYPE.INFO` | `0` | `"info"` |
+| `ArthaMessage.TYPE.SUCCESS` | `1` | `"suscess"` |
+| `ArthaMessage.TYPE.WARNING` | `2` | `"warning"` |
+
+<Note>
+  `ArthaMessage.TYPE.SUCCESS.name` is `"suscess"` (one `c`) in the current source. When styling with CSS, use the attribute selector `[type="suscess"]` to match the success state.
+</Note>
+
+These constants are accepted as the `type` argument to `show()`. You can pass either the constant object or a plain string.
+
+## JavaScript API
+
+### `show(message, type)`
+
+Display a message. The element becomes visible.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `message` | `string\|null` | `null` | The HTML string to display. Set as `innerHTML`. |
+| `type` | `Object\|string\|null` | `null` | A `ArthaMessage.TYPE` constant or a plain string (`"error"`, `"info"`, etc.). When `null`, the current `type` attribute is kept. |
+
+```javascript
+const msg = document.querySelector('artha-message');
+
+msg.show('Loading data…');
+msg.show('Something went wrong.', ArthaMessage.TYPE.ERROR);
+msg.show('Saved!', 'success');
+```
+
+### `hidden()`
+
+Hide the element. Called automatically on `connectedCallback`.
+
+```javascript
+msg.hidden();
+```
+
+### `error(message)`
+
+Shorthand for `show(message, ArthaMessage.TYPE.ERROR)`.
+
+```javascript
+msg.error('Could not connect to the server.');
+```
+
+### `info(message)`
+
+Shorthand for `show(message, ArthaMessage.TYPE.INFO)`.
+
+```javascript
+msg.info('Your session expires in 5 minutes.');
+```
+
+### `success(message)`
+
+Shorthand for `show(message, ArthaMessage.TYPE.SUCCESS)`.
+
+```javascript
+msg.success('Changes saved.');
+```
+
+### `warning(message)`
+
+Shorthand for `show(message, ArthaMessage.TYPE.WARNING)`.
+
+```javascript
+msg.warning('This action cannot be undone.');
+```
+
+## Usage patterns
+
+<Tabs>
+  <Tab title="Standalone">
+    Use `<artha-message>` anywhere in the page to display application-level feedback.
+
+    ```html
+    <artha-message id="page-message"></artha-message>
+
+    <script type="module">
+      const msg = document.querySelector('#page-message');
+
+      // Show a success message
+      msg.success('Your account has been created.');
+
+      // Show an error
+      msg.error('Invalid email address.');
+
+      // Show an info notice
+      msg.info('Two-factor authentication is recommended.');
+
+      // Show a warning
+      msg.warning('You have unsaved changes.');
+
+      // Hide it again
+      msg.hidden();
+    </script>
+    ```
+  </Tab>
+
+  <Tab title="Inside artha-container">
+    Place `<artha-message>` as a direct child of `<artha-container>`. The container discovers it automatically and uses it to show loading and error states during XHR requests.
+
+    ```html
+    <artha-container action="/api/products" template="product-template">
+      <artha-message></artha-message>
+    </artha-container>
+
+    <template id="product-template">
+      <div>
+        <span data-wire="name"></span>
+        <span data-wire="price"></span>
+      </div>
+    </template>
+    ```
+
+    Alternatively, reference an external message element using `message-target`:
+
+    ```html
+    <artha-message id="container-msg"></artha-message>
+
+    <artha-container
+      action="/api/products"
+      template="product-template"
+      message-target="#container-msg"
+    ></artha-container>
+    ```
+  </Tab>
+
+  <Tab title="Inside artha-form">
+    Place `<artha-message>` as a direct child of `<artha-form>`. If none is present, the form creates one automatically and appends it as its last child.
+
+    ```html
+    <artha-form action="/api/login" method="POST">
+      <artha-message></artha-message>
+
+      <input name="username" type="text" required />
+      <input name="password" type="password" required />
+
+      <button type="submit">Log in</button>
+    </artha-form>
+    ```
+
+    The form shows:
+    - A `warning` message while the request is in flight (from the task queue).
+    - The `message` field from the JSON response (as `error` or `success` based on the HTTP status).
+    - An `error` message on network failure.
+  </Tab>
+</Tabs>
+
+## Passing server messages
+
+Both `<artha-container>` and `<artha-form>` check the server's JSON response for a `message` field and a `status` field, and forward them to the message element:
+
+```json
+{
+  "status": "success",
+  "message": "Record updated.",
+  "data": { }
+}
+```
+
+The `status` string is passed directly as the `type` argument to `show()`. You can use any of the four type names (`error`, `info`, `warning`, or `suscess`) as the `status` value in your API response.
+
+<Warning>
+  The `success` type name stored in `ArthaMessage.TYPE.SUCCESS.name` is `"suscess"` due to a typo in the source code. Ensure your server returns `"suscess"` (not `"success"`) if you want the success styling to be applied via the server response `status` field.
+</Warning>
