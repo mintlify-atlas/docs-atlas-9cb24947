@@ -119,6 +119,10 @@ Formats a numeric value as a localized currency string using `Intl.NumberFormat`
 
 **Returns:** `string` — the formatted currency string, or the original `value` string if parsing fails.
 
+<Warning>
+  The current source references an undeclared variable `add_decimals` inside `formatMoney`. When `value` is a string ending with `"."`, this causes a `ReferenceError`. Avoid passing strings with a trailing decimal point until this is fixed upstream.
+</Warning>
+
 ```javascript
 // Using Config defaults (locale: 'es-MX', currency: 'MXN', digits: 2)
 Util.formatMoney(1234.5);             // '$1,234.50'
@@ -192,10 +196,11 @@ Creates a DOM element, optionally populating it with children or text content.
 <ParamField path="value" type="null | string | HTMLElement[] | function" default="null">
   Controls how the element is populated after creation:
 
-  - `null` — returns the empty element immediately (no content is set).
-  - `string` — sets `element.textContent` to the string.
-  - `Array` of `HTMLElement` — each item is appended as a child.
+  - `null` — falls through to the population logic below (string, array, or function handling).
+  - Any non-`null` value — the element is returned **immediately** without population due to an early-return in the current source. Pass `null` and set content via the element reference, or use a callback function.
   - `function` — called with the element as its argument; use this for custom setup logic.
+  - `string` — sets `element.textContent` (only reached when `value` is passed but the current early-return makes this unreachable for non-null non-function values in practice).
+  - `Array` of `HTMLElement` — each item is appended as a child (similarly unreachable currently for non-null array values).
 </ParamField>
 
 <ParamField path="options" type="object" default="{}">
@@ -205,24 +210,21 @@ Creates a DOM element, optionally populating it with children or text content.
 **Returns:** `HTMLElement`
 
 <Warning>
-  When `value` is `null`, the function returns the element immediately before evaluating any population logic. Pass an empty string `""` to get an element with no text but still run through the full code path.
+  There is a logic bug in the current source: `if(value!==null){ return el; }` causes the function to return the bare element immediately when `value` is anything other than `null`. Only the `null` case falls through to the array/function/string population branches. In practice, **use a callback function** (passing a `function` as `value`) as it is the usage pattern found throughout the artha-js source itself (e.g. in `_createLoader()`).
 </Warning>
 
 ```javascript
-// Empty element
-const div = Util.createElement('div');
+// Empty element — pass null, then configure the returned reference
+const div = Util.createElement('div', null);
 
-// Element with text content
-const label = Util.createElement('span', 'Hello, world!');
-
-// Element populated via callback
+// Recommended: callback — the only reliable way to populate in the current source
 const card = Util.createElement('div', (el) => {
   el.className = 'card';
   el.setAttribute('data-id', '42');
 });
 
-// Element with child elements
-const li1 = Util.createElement('li', 'First');
-const li2 = Util.createElement('li', 'Second');
-const ul = Util.createElement('ul', [li1, li2]);
+// As used internally in artha-js (_createLoader):
+const loader = Util.createElement('div', (div) => {
+  div.classList.add('loader-container');
+});
 ```

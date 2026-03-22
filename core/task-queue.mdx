@@ -12,7 +12,7 @@ Tasks communicate their lifecycle status — pending, success, or error — thro
 Returns the single shared `TaskQueue` instance. Creates it on the first call.
 
 ```javascript
-import TaskQueue from 'artha-js/core/TaskQueue.js';
+import TaskQueue from './src/core/TaskQueue.js';
 
 const queue = TaskQueue.singleton();
 ```
@@ -104,8 +104,8 @@ You do not need to set `onFinalize` yourself — it is managed by `TaskQueue`.
 ### Basic XHR task
 
 ```javascript
-import TaskQueue from 'artha-js/core/TaskQueue.js';
-import XHR from 'artha-js/core/XHR.js';
+import TaskQueue from './src/core/TaskQueue.js';
+import XHR from './src/core/XHR.js';
 
 const queue = TaskQueue.singleton();
 

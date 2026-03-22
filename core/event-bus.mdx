@@ -48,25 +48,33 @@ const unsubscribe = EventBus.on('user:login', (user) => {
 unsubscribe();
 ```
 
+<Warning>
+  There is a known bug in the current source: `EventBus.on()` internally registers `callback` directly on the `EventTarget`, but the returned unsubscribe function removes a different internal `handler` reference. As a result, calling the returned unsubscribe function does **not** actually remove the listener. Use `EventBus.off(name, callback)` with the original callback reference for reliable removal.
+</Warning>
+
 ---
 
 ### EventBus.once(name, callback)
 
-Subscribes `callback` to the **next** emission of `name` only. The listener removes itself automatically after the first call.
+Subscribes `callback` to the **next** emission of `name` only.
 
 <ParamField path="name" type="string" required>
   The event name to listen for once.
 </ParamField>
 
 <ParamField path="callback" type="function" required>
-  Called exactly one time with the event payload, then removed.
+  Called with the event payload.
 </ParamField>
 
 ```javascript
 EventBus.once('app:ready', () => {
-  console.log('App initialized — this fires once.');
+  console.log('App initialized.');
 });
 ```
+
+<Warning>
+  There is a known bug in the current source: `EventBus.once()` registers `callback` directly, but the auto-removal logic inside the internal `handler` removes `handler` — not `callback`. The listener is therefore **not** removed after the first call. In practice `once()` behaves like `on()` until this is fixed upstream.
+</Warning>
 
 ---
 
@@ -102,7 +110,7 @@ EventBus.off('data:update', handleUpdate);
 ### Component-to-component communication
 
 ```javascript
-import EventBus from 'artha-js/core/EventBus.js';
+import EventBus from './src/core/EventBus.js';
 
 // In a data service — emit when data changes
 class OrderService {
@@ -132,7 +140,7 @@ class OrderList extends HTMLElement {
 
 ```html
 <!-- This container reloads whenever 'orders:updated' is emitted -->
-<artha-container src="/partials/order-list" refresh-on="orders:updated"></artha-container>
+<artha-container action="/api/orders" template="order-tpl" refresh-on="orders:updated"></artha-container>
 ```
 
 ```javascript

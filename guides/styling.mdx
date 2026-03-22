@@ -54,12 +54,12 @@ If you want to customize variables, compile the SCSS yourself instead of using t
 
 ## SCSS file structure
 
-The entry point is `src/scss/main.scss`, which forwards all partials.
+The entry point is `src/scss/main.scss`, which imports the `message.scss` partial (which in turn uses `colors.scss`).
 
 ```
 src/scss/
-├── main.scss       # Entry point — imports all partials
-├── colors.scss     # Color variables for all components
+├── main.scss       # Entry point — @use './message.scss' as *
+├── colors.scss     # Color variables used by message.scss
 └── message.scss    # Styles for <artha-message>
 ```
 
@@ -164,7 +164,8 @@ artha-message[type="error"] {
   border-left: 4px solid #b94a48;
 }
 
-artha-message[type="success"] {
+/* Note: "suscess" is the actual attribute value set by the source (see ArthaMessage.TYPE.SUCCESS.name) */
+artha-message[type="suscess"] {
   border-left: 4px solid #468847;
 }
 
@@ -176,6 +177,10 @@ artha-message[type="info"] {
   border-left: 4px solid #3a87ad;
 }
 ```
+
+<Warning>
+  The success type attribute value is `"suscess"` (missing the second `c`) due to a typo in `ArthaMessage.TYPE.SUCCESS.name`. Use `[type="suscess"]` in your CSS selectors to target the success state.
+</Warning>
 
 ### `artha-container`
 

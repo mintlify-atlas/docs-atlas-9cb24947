@@ -29,6 +29,10 @@ On mount, `<artha-container>` calls `GET /api/users`, expects a JSON response wi
   The URL to fetch data from. When omitted, no XHR request is made and data must be supplied via `render()` or `refreshWithData()` directly.
 </ParamField>
 
+<ParamField path="action_router" type="string">
+  An alternative action URL property. Tracked in the same internal `_props` array as `action` and accessible as `container.action_router`. Intended for routing-based URL overrides.
+</ParamField>
+
 <ParamField path="template" type="string">
   The `id` of a `<template>` element to clone for each item in the response. The first child of the template is used as the item element.
 </ParamField>
@@ -161,10 +165,11 @@ The `SelectionStore` exposes these methods:
 | Method | Returns | Description |
 |---|---|---|
 | `toValues()` | `string[]` | Array of selected ID strings. |
-| `toElements()` | `Array` | Array of selected DOM element entries. |
-| `toData()` | `Array` | Array of selected data object entries. |
-| `toArray()` | `Array` | Array of `{ value, element, data }` objects. |
+| `toElements()` | `Array<[string, HTMLElement]>` | Array of `[id, element]` pairs from the internal `Map`. |
+| `toData()` | `Array<[string, object]>` | Array of `[id, data]` pairs from the internal `Map`. |
+| `toArray()` | `Array<{value, element, data}>` | Array of combined objects for all selected items. |
 | `has(value)` | `boolean` | Whether an ID is currently selected. |
+| `clear()` | `SelectionStore` | Empties all stores and returns `this`. |
 
 ```javascript
 const store = container.selection();
